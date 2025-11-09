@@ -103,7 +103,7 @@ export function FavoritePalette() {
               margin={1}
               onClick={(e)=>showFullDetailsOfColors(e, unit, router)}
             >
-              {unit.colors.map((color: string, colorIndex: any) => {
+              {unit?.colors?.map((color: string, colorIndex: any) => {
                 const hex = rgbaToHex(color);
                 return (
                   <Box

@@ -18,13 +18,25 @@ export function ColorDetails({ id }) {
     const allColorPaletteRaw = localStorage.getItem("allColorPalette");
     const allColorPalette = JSON.parse(allColorPaletteRaw);
     const palette = allColorPalette.find((unit, index) => {
-      console.log(id)
       if (unit.id === id) {
         return unit;
       }
     });
+    if(palette && Object.keys(palette).length){
+        setSingleColorPalette(palette);
+    }
+    else {
+const selectedColorPaletteRaw = localStorage.getItem("selectedColorPalette");
+    const selectedColorPalette = JSON.parse(selectedColorPaletteRaw);
+    const palette = selectedColorPalette.find((unit, index) => {
+      if (unit.id === id) {
+        return unit;
+      }
+    });
+     setSingleColorPalette(palette);
+    }
     console.log(palette)
-    setSingleColorPalette(palette);
+   
     console.log(allColorPalette);
   }, []);
 
