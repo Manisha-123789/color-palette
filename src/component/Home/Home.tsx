@@ -1,243 +1,197 @@
 "use client";
-import { Box, Grid, Snackbar, Typography } from "@mui/material";
-import { useEffect, useRef, useState } from "react";
+import { Box, Grid, Typography } from "@mui/material";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { ToastContainer } from "react-toastify";
 import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
+import FavoriteIcon from "@mui/icons-material/Favorite";
 import { rgbaToHex } from "../../../utils/rgbaToHex";
 import { handleCopyText } from "../../../utils/handleCopyText";
+import { showFullDetailsOfColors } from "../../../utils/showFullDetailsOfColors";
 import { v4 as uuidv4 } from "uuid";
 import { useRouter } from "next/navigation";
-import { showFullDetailsOfColors } from "../../../utils/showFullDetailsOfColors";
-import FavoriteIcon from "@mui/icons-material/Favorite";
+
+interface Palette {
+  id: string;
+  colors: string[];
+}
 
 export default function Home() {
-  const [palettes, setPalettes] = useState([]);
-  const [visibleItems, setVisibleItems] = useState<any[]>([]);
-  const [page, setPage] = useState(1);
-  const [selectedColorPalette, setSelectedColorPalette] = useState([]);
-  const [index, setIndex] = useState();
-  const itemsPerPage = 8;
+  const [palettes, setPalettes] = useState<Palette[]>([]);
+  const [visibleItems, setVisibleItems] = useState<Palette[]>([]);
+  const [selectedPalettes, setSelectedPalettes] = useState<Palette[]>([]);
+  const [page, setPage] = useState<number>(1);
   const loaderRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
 
-  console.log(selectedColorPalette);
+  const ITEMS_PER_PAGE = 8;
 
-  useEffect(() => {
-    console.log("called");
-    const allColorPaletteRaw = localStorage.getItem("allColorPalette");
-    const selectedColorPaletteRaw = localStorage.getItem(
-      "selectedColorPalette"
-    );
-    let selectedColorPalettelocal;
-    if(selectedColorPaletteRaw){
-      selectedColorPalettelocal = JSON.parse(selectedColorPaletteRaw);
-    }
-    const colorPaletteIndexRow = localStorage.getItem("colorPaletteIndex");
-    const colorPaletteIndex = JSON.parse(colorPaletteIndexRow);
-    
-    if (colorPaletteIndex?.length > 0) {
-      const temp = selectedColorPalettelocal?.filter(
-        (palette) => !colorPaletteIndex.includes(palette.id)
+  // Generate color palettes (used only if not found in localStorage)
+  const generateColorPalette = useCallback((): Palette[] => {
+    return Array.from({ length: 10000 }, () => {
+      const r = Math.floor(Math.random() * 256);
+      const g = Math.floor(Math.random() * 256);
+      const b = Math.floor(Math.random() * 256);
+
+      const rgba = Array.from({ length: 5 }, (_, i) =>
+        i === 4
+          ? `rgba(${r},${g},${b},1)`
+          : `rgba(${r},${g},${b},0.${i * 2 + 2})`
       );
-      localStorage.setItem("selectedColorPalette", JSON.stringify(temp));
-      localStorage.setItem("colorPaletteIndex", JSON.stringify([]));
-      setSelectedColorPalette(temp);
-    }else {
-setSelectedColorPalette(selectedColorPalettelocal);
-    }
-    
 
-    if (allColorPaletteRaw) {
-      const allColorPalette = JSON.parse(allColorPaletteRaw);
-      setPalettes(allColorPalette);
-    } else {
-      function generateColorPalette() {
-        return Array(10000)
-          .fill("")
-          .map((_, index) => {
-            let r = Math.floor(Math.random() * 256);
-            let g = Math.floor(Math.random() * 256);
-            let b = Math.floor(Math.random() * 256);
-
-            const rgba = Array.from({ length: 5 }, (_, index) =>
-              index === 4
-                ? `rgba(${r},${g},${b},1)`
-                : `rgba(${r},${g},${b},0.${index * 2 + 2})`
-            );
-
-            return { id: uuidv4(), colors: rgba };
-          });
-      }
-      const allColorPalette = generateColorPalette();
-      localStorage.setItem("allColorPalette", JSON.stringify(allColorPalette));
-      setPalettes(allColorPalette);
-    }
+      return { id: uuidv4(), colors: rgba };
+    });
   }, []);
 
+  // Initialize palettes from localStorage
   useEffect(() => {
-    if (palettes.length) {
-      const slice = palettes.slice(0, page * itemsPerPage);
-      setVisibleItems(slice);
-    }
-  }, [palettes, page]);
+    const allColorPaletteRaw = localStorage.getItem("allColorPalette");
+    const selectedRaw = localStorage.getItem("selectedColorPalette");
+    const colorPaletteIndexRaw = localStorage.getItem("colorPaletteIndex");
 
+    const allPalettes = allColorPaletteRaw
+      ? JSON.parse(allColorPaletteRaw)
+      : generateColorPalette();
+
+    const selectedPalettesLocal: Palette[] = selectedRaw
+      ? JSON.parse(selectedRaw)
+      : [];
+
+    const colorPaletteIndex = colorPaletteIndexRaw
+      ? JSON.parse(colorPaletteIndexRaw)
+      : [];
+
+    // remove unwanted palettes if colorPaletteIndex exists
+    const updatedSelected = colorPaletteIndex.length
+      ? selectedPalettesLocal.filter(
+          (p) => !colorPaletteIndex.includes(p.id)
+        )
+      : selectedPalettesLocal;
+
+    localStorage.setItem("allColorPalette", JSON.stringify(allPalettes));
+    localStorage.setItem("selectedColorPalette", JSON.stringify(updatedSelected));
+    localStorage.setItem("colorPaletteIndex", JSON.stringify([]));
+
+    setPalettes(allPalettes);
+    setSelectedPalettes(updatedSelected);
+  }, [generateColorPalette]);
+
+  // Infinite scroll setup
   useEffect(() => {
     if (!loaderRef.current) return;
-    const observer = new IntersectionObserver((entries) => {
-      const entry = entries[0];
-      if (entry.isIntersecting) {
-        setPage((prev) => prev + 1);
-      }
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) setPage((prev) => prev + 1);
     });
 
     observer.observe(loaderRef.current);
+    return () => observer.disconnect();
+  }, []);
 
-    return () => {
-      observer.disconnect();
-    };
-  }, [loaderRef]);
+  // Update visible palettes when page or palettes change
+  useEffect(() => {
+    setVisibleItems(palettes.slice(0, page * ITEMS_PER_PAGE));
+  }, [palettes, page]);
 
-  const handleSelectedColor = (e: React.MouseEvent<HTMLInputElement>, unit) => {
+  // Add to favorites
+  const handleAddFavorite = useCallback((e: React.MouseEvent, palette: Palette) => {
     e.stopPropagation();
+    const updated = [...selectedPalettes, palette];
+    setSelectedPalettes(updated);
+    localStorage.setItem("selectedColorPalette", JSON.stringify(updated));
+  }, [selectedPalettes]);
 
-    const selectedColorPaletteRow = localStorage.getItem(
-      "selectedColorPalette"
-    );
-    if (selectedColorPaletteRow) {
-      let selectedColorPalette = JSON.parse(selectedColorPaletteRow);
-      let setColorPalette = [
-        ...selectedColorPalette,
-        { id: unit.id, colors: unit.colors },
-      ];
-      localStorage.setItem(
-        "selectedColorPalette",
-        JSON.stringify(setColorPalette)
-      );
-      setSelectedColorPalette(setColorPalette);
-    } else {
-      localStorage.setItem(
-        "selectedColorPalette",
-        JSON.stringify([{ id: unit.id, colors: unit.colors }])
-      );
-      setSelectedColorPalette([{ id: unit.id, colors: unit.colors }]);
-    }
-  };
-
-  const handleRemoveIndex = (
-    e: React.MouseEvent<HTMLInputElement>,
-    selectedIndex: any
-  ) => {
+  // Remove from favorites
+  const handleRemoveFavorite = useCallback((e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    const temp = selectedColorPalette.filter(
-      (unit) => unit.id !== selectedIndex
+    const updated = selectedPalettes.filter((p) => p.id !== id);
+    setSelectedPalettes(updated);
+    localStorage.setItem("selectedColorPalette", JSON.stringify(updated));
+  }, [selectedPalettes]);
+
+  // Render color box
+  const renderColorBox = (color: string, colorIndex: number, paletteIndex: number) => {
+    const hex = rgbaToHex(color);
+    const isTop = colorIndex === 0;
+    const isBottom = colorIndex === 4;
+
+    return (
+      <Box
+        key={`color-${paletteIndex}-${colorIndex}`}
+        bgcolor={color}
+        height={100}
+        display="flex"
+        alignItems="flex-end"
+        sx={{
+          cursor: "pointer",
+          borderRadius: `${isTop ? "5px 5px 0 0" : isBottom ? "0 0 5px 5px" : "0"}`,
+          "&:hover .color-value": { opacity: 1 },
+        }}
+      >
+        <Typography
+          className="color-value"
+          fontSize="15px"
+          color="white"
+          sx={{
+            opacity: 0,
+            transition: "opacity 0.2s ease-in-out",
+            backgroundColor: "rgba(0,0,0,0.5)",
+            padding: "2px 8px",
+            borderRadius: "4px",
+            mb: "5px",
+          }}
+          onClick={(e) => handleCopyText(e, hex)}
+        >
+          {hex}
+        </Typography>
+      </Box>
     );
-    setSelectedColorPalette(temp);
-    localStorage.setItem("selectedColorPalette", JSON.stringify(temp));
   };
 
   return (
-    <>
-      <Box width="100%" minHeight="100vh" padding={{ xs: 2, sm: 4, md: 8 }}>
-        <Grid container spacing={3} justifyContent="center" flexWrap="wrap">
-          {visibleItems?.map((unit, paletteIndex) => {
-            return (
+    <Box width="100%" minHeight="100vh" p={{ xs: 2, sm: 4, md: 8 }}>
+      <Grid container spacing={3} justifyContent="center" flexWrap="wrap">
+        {visibleItems.map((palette, paletteIndex) => {
+          const isSelected = selectedPalettes.some((p) => p.id === palette.id);
+          return (
+            <Box
+              key={palette.id}
+              display="flex"
+              flexDirection="column"
+              width={275}
+              height={275}
+              borderRadius={4}
+              m={1}
+              onClick={(e) => showFullDetailsOfColors(e, palette, router)}
+            >
+              {palette.colors.map((color, colorIndex) =>
+                renderColorBox(color, colorIndex, paletteIndex)
+              )}
               <Box
-                id={unit.id}
-                key={`palette-${paletteIndex}`}
-                display="flex"
-                flexDirection="column"
-                alignContent="center"
-                width={275}
-                height={275}
-                borderRadius={4}
-                margin={1}
-                onClick={(e) => showFullDetailsOfColors(e, unit, router)}
+                sx={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  alignItems: "center",
+                  p: "7px",
+                  borderRadius: "5px",
+                }}
               >
-                {unit?.colors?.map((color, colorIndex) => {
-                  const hex = rgbaToHex(color);
-                  return (
-                    <Box
-                      key={`color-${paletteIndex}-${colorIndex}`}
-                      width="100%"
-                      height={100}
-                      bgcolor={color}
-                      display="flex"
-                      alignItems="flex-end"
-                      paddingLeft="5px"
-                      sx={{
-                        cursor: "pointer",
-                        borderTopLeftRadius: colorIndex === 0 ? 5 : 0,
-                        borderTopRightRadius: colorIndex === 0 ? 5 : 0,
-                        borderBottomLeftRadius: colorIndex === 4 ? 5 : 0,
-                        borderBottomRightRadius: colorIndex === 4 ? 5 : 0,
-                        "&:hover .color-value": { opacity: 1 },
-                      }}
-                    >
-                      <Typography
-                        className="color-value"
-                        fontSize="15px"
-                        color="white"
-                        sx={{
-                          opacity: 0,
-                          transition: "opacity 0.2s ease-in-out",
-                          backgroundColor: "rgba(0,0,0,0.5)",
-                          padding: "2px 8px",
-                          borderRadius: "4px",
-                          marginBottom: "5px",
-                        }}
-                        onClick={(e) => handleCopyText(e, hex)}
-                      >
-                        {hex}
-                      </Typography>
-                    </Box>
-                  );
-                })}
-                {/* <FavoriteBorderIcon
-                  onClick={(e) => handleSelectedColor(e, unit)}
-                /> */}
-                {!selectedColorPalette?.find(
-                  (palette) => palette.id === unit.id
-                ) ? (
-                  <Box
-                    sx={{
-                      display: "flex",
-                      justifyContent: "flex-end",
-                      alignItems: "center",
-                      gap: "10px",
-
-                      padding: "7px",
-                      borderRadius: "5px",
-                    }}
-                  >
-                    {" "}
-                    <FavoriteBorderIcon
-                      onClick={(e) => handleSelectedColor(e, unit)}
-                    />{" "}
-                  </Box>
+                {isSelected ? (
+                  <FavoriteIcon
+                    fontSize="small"
+                    onClick={(e) => handleRemoveFavorite(e, palette.id)}
+                  />
                 ) : (
-                  <Box
-                    sx={{
-                      display: "flex",
-                      justifyContent: "flex-end",
-                      alignItems: "center",
-                      gap: "10px",
-                      padding: "7px",
-                      borderRadius: "5px",
-                    }}
-                  >
-                    <FavoriteIcon
-                      fontSize="small"
-                      onClick={(e) => handleRemoveIndex(e, unit.id)}
-                    />{" "}
-                  </Box>
+                  <FavoriteBorderIcon
+                    onClick={(e) => handleAddFavorite(e, palette)}
+                  />
                 )}
               </Box>
-            );
-          })}
-          <div ref={loaderRef} style={{ height: "50px", width: "100%" }}></div>
-        </Grid>
-        <ToastContainer />
-      </Box>
-    </>
+            </Box>
+          );
+        })}
+        <div ref={loaderRef} style={{ height: "50px", width: "100%" }} />
+      </Grid>
+      <ToastContainer />
+    </Box>
   );
 }

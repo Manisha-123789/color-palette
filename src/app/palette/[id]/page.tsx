@@ -1,8 +1,14 @@
 import { ColorDetails } from "@/component/ColorDetails/ColorDetails";
-import { Typography } from "@mui/material";
+
+interface ProductPageProps {
+  params: {
+    id: string;
+  };
+}
 
 
-export default function Page({params}) {
+
+export default function Page({params} : ProductPageProps) {
  const id = params.id;
  console.log(id, 'kkkkkkkkkkk')
   return (
